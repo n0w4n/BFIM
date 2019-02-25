@@ -15,7 +15,7 @@ offers to install the tool.
 BFIM has the following functions:
 
 --create
-This will create a baseline of the files and folders, which are noted in the folders.list file.
+This will create a baseline of the files and folders, which are noted in the `folders.list` file.
 This file needs to be adjusted if there is a need to add or remove folders.
 If there is already a baseline set it will give a warning that it will remove the current
 baseline and create a new one. 
@@ -29,12 +29,12 @@ The check function will also give the opportunity to put the added files into a 
 Here the files are stripped from their original ownership and permissions are changed to 400.
 
 --clone
-This function will create a folder with files and folders from the whitelist.list file.
+This function will create a folder with files and folders from the `whitelist.list` file.
 In a later stage BFIM can compare these files with modified files found on the system.
 
 --compare
 This function will compare any modified file found with the original version of that file, 
-which is cloned into the folder <fim folder>/clone.
+which is cloned into the folder `<fim folder>/clone`.
 The whitelist.list file is important for this function as it holds the folders needed to be cloned.
 If this function tries to compare a found modified file and there is no original cloned file,
 it will report that there is no cloned version found to compare with.
