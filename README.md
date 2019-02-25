@@ -1,5 +1,4 @@
 # BBFIM ~ Bash File Integrity Monitor
-
 BFIM is created as part of an redteam/blueteam excercise.
 Because there wasn't much information about given resources on the defending machines, 
 I needed a BFIM that had almost no dependancies and was very lightweight.
@@ -7,16 +6,12 @@ BFIM can help with maintaining the integrity of your filesystem.
 It is easy and fast to use and is flexible when adjusting is needed.
 
 ## INSTALL
-=======
-
 There is no need for installing this program.
 It only uses the tools available on the local system.
 If the required tools are not available it will either give an error or 
 offers to install the tool.
 
 ## FUNCTIONS
-=========
-
 BFIM has the following functions:
 
 --create
@@ -51,15 +46,12 @@ This function will create a backup of the current baseline.
 This function will list all the backups of baselines and gives the choice which baseline backup needs 
 to be restored as the current baseline.
 
-
-## TRUST
-=====
-
-Like all things from the internet: Don't trust it blindly!!!
-This is a bash script with no intention of harming your system.
-But a check never hurts. You use this program at your own risk.
-
 ## DEMO
 For demonstration purposes there is a demo.sh which will create a basic setup to mimic an attacker on the system.
 The script will create files and then removes some and alters others after you created a baseline.
 This will trigger BFIM and it will report on the changes.
+
+## TRUST
+Like all things from the internet: Don't trust it blindly!!!
+This is a bash script with no intention of harming your system.
+But a check never hurts. You use this program at your own risk.
