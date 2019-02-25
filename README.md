@@ -1,5 +1,4 @@
 # BBFIM ~ Bash File Integrity Monitor
-==================================
 
 BFIM is created as part of an redteam/blueteam excercise.
 Because there wasn't much information about given resources on the defending machines, 
