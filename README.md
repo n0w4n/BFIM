@@ -51,6 +51,11 @@ For demonstration purposes there is a demo.sh which will create a basic setup to
 The script will create files and then removes some and alters others after you created a baseline.
 This will trigger BFIM and it will report on the changes.
 
+## COMING
+This script is a work-in-progress and there are still a few things that needs to be done:
+- a log or reporting function to backtrack the things that have accured on the system
+- a function to restore files from the clone folder if the modifications are unwanted
+
 ## TRUST
 Like all things from the internet: Don't trust it blindly!!!
 This is a bash script with no intention of harming your system.
