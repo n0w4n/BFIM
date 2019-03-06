@@ -55,4 +55,4 @@ This will trigger BFIM and it will report on the changes.
 ## TRUST
 Like all things from the internet: Don't trust it blindly!!!
 This is a bash script with no intention of harming your system.
-But a check never hurts. You use this program at your own risk.
+But a check never hurts. You use this program at your own risk. 
