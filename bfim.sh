@@ -12,7 +12,7 @@
 # This is the path where all the needed files of FIM will be stored
 # It is advicable to not use /root as this is a folder you will want to keep an eye for
 # The path given will be excluded from the scans
-base_path="/var/fim"
+base_path="/var/bfim"
 
 function color () {
 	# This part defines the colors in the output
@@ -25,7 +25,7 @@ function color () {
 function logo () {
 	echo ""
 	echo "==================================================================="
-	echo "               BFIM ~ BASH FOLDER INTEGRITY MONITOR                "
+	echo "               BFIM ~ BASH FILE INTEGRITY MONITOR                  "
 	echo "               created by n0w4n                                    "
 	echo "==================================================================="
 	echo ""
@@ -39,16 +39,20 @@ function dependancy () {
 	then
 		echo "[-] The program 'tree' is not in PATH!"
 		read -p '[-] Do you want to install it (Y/n)? ' installtree
-		if [[ ! $installtree =~ [YyNn] ]]; then
-			echo -e "[$RED!$NORMAL] That is not a valid option!"
-			dependancy
-		elif [[ $installtree =~ [Yy] ]]; then
+		if [[ ! -z $installtree ]]; then
+			if [[ ! $installtree =~ [YyNn] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!"
+				dependancy
+			elif [[ $installtree =~ [Yy] ]]; then
+				sudo apt install tree -y
+			elif [[ $installtree =~ [Nn] ]]; then
+				echo -e "[$RED!$NORMAL] This program cannot run without the 'tree' program!!!"
+				echo "[-] Exiting"
+				echo ""
+				exit 0
+			fi
+		else
 			sudo apt install tree -y
-		elif [[ $installtree =~ [Nn] ]]; then
-			echo -e "[$RED!$NORMAL] This program cannot run without the 'tree' program!!!"
-			echo "[-] Exiting"
-			echo ""
-			exit 0
 		fi
 	fi
 
@@ -56,16 +60,41 @@ function dependancy () {
 	then
 		echo "[-] The program 'diff' is not in PATH!"
 		read -p '[-] Do you want to install it (Y/n)? ' installdiff
-		if [[ ! $installdiff =~ [YyNn] ]]; then
-			echo -e "[$RED!$NORMAL] That is not a valid option!"
-			dependancy
-		elif [[ $installdiff =~ [Yy] ]]; then
+		if [[ ! -z $installdiff ]]; then	
+			if [[ ! $installdiff =~ [YyNn] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!"
+				dependancy
+			elif [[ $installdiff =~ [Yy] ]]; then
+				sudo apt install diffutils -y
+			elif [[ $installdiff =~ [Nn] ]]; then
+				echo -e "[$RED!$NORMAL] This program cannot run without the 'diff' program!!!"
+				echo "[-] Exiting"
+				echo ""
+				exit 0
+			fi
+		else
 			sudo apt install diffutils -y
-		elif [[ $installdiff =~ [Nn] ]]; then
-			echo -e "[$RED!$NORMAL] This program cannot run without the 'diff' program!!!"
-			echo "[-] Exiting"
-			echo ""
-			exit 0
+		fi
+	fi
+
+	if ! hash ts 2>/dev/null
+	then
+		echo "[-] The program 'ts' is not in PATH!"
+		read -p '[-] Do you want to install it (Y/n)? ' installmoreutils
+		if [[ ! -z $installmoreutils ]]; then
+			if [[ ! $installmoreutils =~ [YyNn] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!"
+				dependancy
+			elif [[ $installmoreutils =~ [Yy] ]]; then
+				sudo apt install moreutils -y
+			elif [[ $installmoreutils =~ [Nn] ]]; then
+				echo -e "[$RED!$NORMAL] This program cannot run without the 'ts' program!!!"
+				echo "[-] Exiting"
+				echo ""
+				exit 0
+			fi
+		else
+			sudo apt install moreutils -y
 		fi
 	fi
 
@@ -124,6 +153,10 @@ function folder_check () {
 		mkdir -p $base_path/tmp
 		mkdir -p $base_path/clone
 		mkdir -p $base_path/quarantaine
+		mkdir -p $base_path/logs
+		if [[ ! -f $base_path/logs/bfim.log ]]; then
+			touch $base_path/logs/bfim.log
+		fi
 		if [[ ! $? -eq 0 ]]; then
 			echo -e "[$RED!$NORMAL] Unable to create folder $base_path/!!!"
 			echo "-------------------------------------------------------------------"
@@ -132,8 +165,11 @@ function folder_check () {
 			exit 0
 		fi
 		# Set permission to the folder for root only
-		chmod -R 600 $base_path/
+		chmod 600 $base_path/
+		chmod 600 $base_path/*
+		chmod -R 600 $base_path/tmp
 		chmod -R 400 $base_path/quarantaine
+		chmod -R 400 $base_path/logs
 	fi
 
 	# In case of an intended or unintended removal of the list of folders, this part will recreate the file with the folders
@@ -150,14 +186,19 @@ function folder_check () {
 		echo "/home" >> $base_path/folders.list
 		ls -lah /var | grep drw | grep -v log | grep -v fim | grep -v lib | tail -n +3 | awk '{print "/var/"$9}' >> $base_path/folders.list
 	else
+		# Checks if the var folder is in the folders.list file
+		# If not, it will add the needed folders within /var to the folders.list
 		folder_check=$(cat $base_path/folders.list | grep /var/)
-
+		# /var folder contains folders with rapidly changing files
+		# These folders will be removed from the list
+		# If alteration is needed, adjust the grep -v <folder> command to exclude a folder from the search
 		if [[ -z $folder_check ]]; then
 			ls -lah /var | grep drw | grep -v log | grep -v fim | grep -v lib | tail -n +3 | awk '{print "/var/"$9}' >> $base_path/folders.list
 		fi
 	fi
 
 	# Creates the whitelist.list file
+	# This file is used for targeting the files/folders which needs to be cloned
 	if [[ ! -f $base_path/whitelist.list ]]; then
 		echo "/var/www" > $base_path/whitelist.list
 		echo "/home" >> $base_path/whitelist.list
@@ -178,46 +219,54 @@ function baseline () {
 	clone
 	
 	if [[ -f $base_path/baseline ]]; then
-		echo -e "[$RED!$NORMAL] Baseline found!!!"
+		echo -e "[$RED!$NORMAL] Baseline found!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 		read -p '[-] Create a new baseline (y/N)? ' newbaseline
-		if [[ ! $newbaseline =~ [yYnN] ]]; then
-			echo -e "[$RED!$NORMAL] That is not a valid option!!!"
-			logo
-			main $1
-		elif [[ $newbaseline =~ [nN] ]]; then
-			echo "[-] Keeping baseline..."
-			echo "-------------------------------------------------------------------"
-			echo "[-] Exiting"
-			echo ""
+		if [[ ! -z $newbaseline ]]; then
+			if [[ ! $newbaseline =~ [yYnN] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!!!"
+				logo
+				main $1
+			elif [[ $newbaseline =~ [nN] ]]; then
+				echo "[-] Keeping baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				echo "" | tee -a $base_path/logs/bfim.log
+				exit 0
+			elif [[ $newbaseline =~ [yY] ]]; then
+				echo "[-] Creating a backup of the current baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				# Better be save then sorry
+				time_baseline=`ls -l $base_path/baseline | tr '[:upper:]' '[:lower:]' | awk '{print $7"-"$6"-2019-"$8}' | sed 's/://'`
+				cp --preserve=all $base_path/baseline $base_path/baseline_$time_baseline
+				echo "[-] Removing the old baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				rm -f $base_path/baseline
+				echo "[-] Creating a new baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+
+				for ITEMS in $(cat $base_path/folders.list);
+				do
+					tree -lfsugiF --dirsfirst --sort=name $ITEMS >> $base_path/baseline
+				done
+
+				# Tree will recursively run through folders
+				# This tree command will limit itself to the root folder without going to /proc/, /var/log/
+				# Because these folders will create false-positives
+				tree -lfsugiF --dirsfirst --sort=name -L 1 / >> $base_path/baseline
+
+				# Set permission for root only
+				chmod 600 $base_path/*
+
+				echo "[-] Baseline is created and stored in $base_path/baseline" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				clone
+			fi
+		else
+			echo "[-] Keeping baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
 			exit 0
-		elif [[ $newbaseline =~ [yY] ]]; then
-			echo "[-] Creating a backup of the current baseline..."
-			# Better be save then sorry
-			time_baseline=`ls -l $base_path/baseline | tr '[:upper:]' '[:lower:]' | awk '{print $7"-"$6"-2019-"$8}' | sed 's/://'`
-			cp $base_path/baseline $base_path/baseline_$time_baseline
-			echo "[-] Removing the old baseline..."
-			rm -f $base_path/baseline
-			echo "[-] Creating a new baseline..."
-
-			for ITEMS in $(cat $base_path/folders.list);
-			do
-				tree -lfsugiF --dirsfirst --sort=name $ITEMS >> $base_path/baseline
-			done
-
-			# Tree will recursively run through folders
-			# This tree command will limit itself to the root folder without going to /proc/, /var/log/
-			# Because these folders will create false-positives
-			tree -lfsugiF --dirsfirst --sort=name -L 1 / >> $base_path/baseline
-
-			# Set permission for root only
-			chmod -R 600 $base_path/
-
-			echo "[-] Baseline is created and stored in $base_path/baseline"
-			echo "-------------------------------------------------------------------"
-			clone
 		fi
 	else
-		echo "[-] Creating a baseline..."
+		echo "[-] Creating a baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 
 		for ITEMS in $(cat $base_path/folders.list);
 		do
@@ -230,12 +279,12 @@ function baseline () {
 		tree -lfsugiF --dirsfirst --sort=name -L 1 / >> $base_path/baseline
 
 		# Set permission for root only
-		chmod -R 600 $base_path/
+		chmod 600 $base_path/*
 		
-		echo "[-] Baseline is created and stored in $base_path/baseline"
-		echo "-------------------------------------------------------------------"
-		echo "[-] Exiting"
-		echo ""
+		echo "[-] Baseline is created and stored in $base_path/baseline" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "" | tee -a $base_path/logs/bfim.log
 	fi
 }
 
@@ -248,18 +297,18 @@ function check () {
 
 	rm -f $base_path/check
 	
-	echo "[-] Checking for baseline..."
+	echo "[-] Checking for baseline..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 
 	if [[ ! -f $base_path/baseline ]]; then
-		echo -e "[$RED!$NORMAL] No baseline detected!!!"
-		echo "[-] Create a baseline first (fim -b)..."
-		echo "[-] Exiting"
-		echo ""
+		echo -e "[$RED!$NORMAL] No baseline detected!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Create a baseline first (fim -b)..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "" | tee -a $base_path/logs/bfim.log
 		exit 0
 	else
-		echo "[-] Baseline found..."
-		echo "-------------------------------------------------------------------"
-		echo "[-] Creating a checksum for verification..."
+		echo "[-] Baseline found..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Creating a checksum for verification..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 		
 		for ITEMS in $(cat $base_path/folders.list);
 		do
@@ -272,7 +321,7 @@ function check () {
 		tree -lfsugiF --dirsfirst --sort=name -L 1 / >> $base_path/check
 
 		# Set permission for root only
-		chmod -R 600 $base_path/
+		chmod 600 $base_path/*
 
 		# Creates variables with the md5 checksums of the tree output in memory
 		hash_baseline=`md5sum $base_path/baseline | awk '{print $1}'`
@@ -281,14 +330,14 @@ function check () {
 		# This part is comparing the checksum from the baseline with the checksum from the check
 		# If it does not match it will give as output the file(s) and/or folder(s) that create a mismatch
 		if [[ ! $hash_baseline == $hash_check ]]; then
-			echo -e "[$RED!$NORMAL] Suspicious activity is detected!!!"
+			echo -e "[$RED!$NORMAL] Suspicious activity is detected!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 			identification-files
 		else
-			echo "[-] The checksums are identical..."
-			echo "[-] No suspicious activity is detected!"
-			echo "-------------------------------------------------------------------"
-			echo "[-] Exiting"
-			echo ""
+			echo "[-] The checksums are identical..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "[-] No suspicious activity is detected!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
 		fi
 	fi
 }
@@ -303,8 +352,8 @@ function identification-files () {
 	# Remove earlier created tmp files
 	rm -f $base_path/tmp/*.tmp
 
-	echo "[-] Trying to find the suspicious activity..."
-	echo ""
+	echo "[-] Trying to find the suspicious activity..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "" | tee -a $base_path/logs/bfim.log
 	
 	# Variable to set suspicious flag
 	suspicious_flag=0
@@ -325,25 +374,26 @@ function identification-files () {
 		# Report for modified files
 		if [[ $modified_count -eq 1 ]]; then
 			if [[ ! -z $file_names_notuniq ]]; then
-				echo "[-] File modified on the system:"
+				echo "[-] File modified on the system:" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 				for i in $file_names_notuniq;
 				do
-					echo "    > $i"
+					echo "    > $i" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 				done
-				echo ""
+				echo "" | tee -a $base_path/logs/bfim.log
 			fi
 		else
 			if [[ ! -z $file_names_notuniq ]]; then
-				echo "[-] Files modified on the system:"
+				echo "[-] Files modified on the system:" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 				for i in $file_names_notuniq;
 				do
-					echo "    > $i"
+					echo "    > $i" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 				done
-				echo ""
+				echo "" | tee -a $base_path/logs/bfim.log
 			fi
 		fi
 	else
-		echo "[-] No files modified on the system..."
+		echo "[-] No files modified on the system..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo ""
 	fi
 
 	# Check for files removed from the system
@@ -362,30 +412,30 @@ function identification-files () {
 			# Report for removed files
 			if [[ $removed_count -eq 1 ]]; then
 				if [[ ! -z $file_removed ]]; then
-					echo "[-] File removed from the system:"
+					echo "[-] File removed from the system:" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					for i in $file_removed;
 					do
-						echo "    > $i"
+						echo "    > $i" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					done
-					echo ""
+					echo "" | tee -a $base_path/logs/bfim.log
 				fi
 			else
 				if [[ ! -z $file_removed ]]; then
-					echo "[-] Files removed from the system:"
+					echo "[-] Files removed from the system:" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					for i in $file_removed;
 					do
-						echo "    > $i"
+						echo "    > $i" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					done
-					echo ""
+					echo "" | tee -a $base_path/logs/bfim.log
 				fi
 			fi
 		else
-			echo "[-] No files removed from the system..."
-			echo ""
+			echo "[-] No files removed from the system..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
 		fi
 	else
-		echo "[-] No files removed from the system..."
-		echo ""
+		echo "[-] No files removed from the system..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "" | tee -a $base_path/logs/bfim.log
 	fi
 
 	if [[ ! -z $file_names_uniq ]]; then
@@ -408,26 +458,26 @@ function identification-files () {
 			# Report for added files
 			if [[ $added_count -eq 1 ]]; then
 				if [[ ! -z $file_added ]]; then
-					echo "[-] Suspicious file added to the system:"
+					echo "[-] Suspicious file added to the system:" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					for i in $file_added;
 					do
-						echo "    > $i"
+						echo "    > $i" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					done
 				fi
 			else
 				if [[ ! -z $file_added ]]; then
-					echo "[-] Suspicious files added to the system:"
+					echo "[-] Suspicious files added to the system:" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					for i in $file_added;
 					do
-						echo "    > $i"
+						echo "    > $i" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 					done
 				fi
 			fi
 		else
-			echo "[-] No files added to the system..."
+			echo "[-] No files added to the system..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 		fi
 	else
-		echo "[-] No files added to the system..."
+		echo "[-] No files added to the system..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 	fi
 
 	# Change permission on tmp folder (and files)
@@ -438,44 +488,67 @@ function identification-files () {
 		echo "-------------------------------------------------------------------"
 		read -p '[-] Move the suspicious files to quarantaine folder (Y/n)? ' questionquarantaine
 
-		if [[ ! $questionquarantaine =~ [YyNn] ]]; then
-			echo -e "[$RED!$NORMAL] That is not a valid option!!!"
-			sleep 3
-			clear
-			logo
-			identification-files
-		else
-			if [[ $questionquarantaine =~ [Yy] ]]; then
-				echo "-------------------------------------------------------------------"
-				echo "[-] Choose method of moving files..."
-				echo ""
-				echo "[1] Move all the files at once"
-				echo "[2] Choose which file needs to be moved"
-				echo ""
-				read -p '[-] Choose option 1 or 2: ' questionoption
-				if [[ ! $questionoption =~ [12] ]]; then
-					echo -e "[$RED!$NORMAL] That is not a valid option!!!"
-					sleep 2
-					clear
-					logo
-					identification-files
-				else
-					if [[ $questionoption == 1 ]]; then
-						batch-quarantaine
+		if [[ ! -z $questionquarantaine ]]; then
+			if [[ ! $questionquarantaine =~ [YyNn] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!!!"
+				sleep 3
+				clear
+				logo
+				identification-files
+			else
+				if [[ $questionquarantaine =~ [Yy] ]]; then
+					echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "[-] Choose method of moving files..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+					echo "[1] Move all the files at once" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "[2] Choose which file needs to be moved" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo ""
+					read -p '[-] Choose option 1 or 2: ' questionoption
+					if [[ ! $questionoption =~ [12] ]]; then
+						echo -e "[$RED!$NORMAL] That is not a valid option!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+						sleep 2
+						clear
+						logo
+						identification-files
 					else
-						quarantaine
+						if [[ $questionoption == 1 ]]; then
+							batch-quarantaine
+						else
+							quarantaine
+						fi
 					fi
 				fi
 			fi
+		else
+			echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "[-] Choose method of moving files..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
+			echo "[1] Move all the files at once" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "[2] Choose which file needs to be moved" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo ""
+			read -p '[-] Choose option 1 or 2: ' questionoption
+			if [[ ! $questionoption =~ [12] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				sleep 2
+				clear
+				logo
+				identification-files
+			else
+				if [[ $questionoption == 1 ]]; then
+					batch-quarantaine
+				else
+					quarantaine
+				fi
+			fi
 		fi
-		echo "-------------------------------------------------------------------"
-		echo "[-] Exiting"
-		echo ""
+		echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "" | tee -a $base_path/logs/bfim.log
 		exit 0
 	else
-		echo "-------------------------------------------------------------------"
-		echo "[-] Exiting"
-		echo ""
+		echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "" | tee -a $base_path/logs/bfim.log
 		exit 0
 	fi
 }
@@ -494,15 +567,11 @@ function backup () {
 		echo "-------------------------------------------------------------------"
 		echo "[-] Making a backup of the current baseline..."
 		time_baseline=`ls -l $base_path/baseline | tr '[:upper:]' '[:lower:]' | awk '{print $7"-"$6"-2019-"$8}' | sed 's/://'`
-		cp $base_path/baseline $base_path/baseline_$time_baseline
+		cp --preserve=all $base_path/baseline $base_path/baseline_$time_baseline
 		echo "[-] Backup of current baseline = $base_path/baseline_$time_baseline"
 		echo "-------------------------------------------------------------------"
 		echo "[-] Exiting"
 		echo ""
-
-		# Set permission for root only
-		chmod -R 600 $base_path/
-
 	else
 		echo -e "[$RED!$NORMAL] There is no current baseline found!!!"
 		echo "-------------------------------------------------------------------"
@@ -519,15 +588,13 @@ function clone () {
 	# Whitelist for copying files and folders
 	whitelist=`cat $base_path/whitelist.list`
 
-	echo "[-] Copying all files from the whitelist into $base_path/clone..."
+	echo "[-] Copying all files from the whitelist into $base_path/clone..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 	echo ""
 
 	for FILES in $whitelist;
 	do
-		rsync -arR --info=progress2 $FILES $base_path/clone
+		rsync -arRpXogt --info=progress2 $FILES $base_path/clone
 	done
-
-	chmod -R 600 $base_path/clone
 
 	echo "-------------------------------------------------------------------"
 }
@@ -538,9 +605,11 @@ function compare () {
 
 	folder_check
 
+	# Variable to set modify flag to zero
+	modifyFlag=0
+
 	if [[ ! -d $base_path/clone ]]; then
 		echo "[!] No copied files found to compare!!!"
-		echo "[-] Has 'fim --cloned' ran?"
 		echo "-------------------------------------------------------------------"
 		echo "[-] Exiting"
 		exit 0
@@ -549,29 +618,61 @@ function compare () {
 		file_names_modified=`diff $base_path/baseline $base_path/check | grep -v '^[0-9]' | grep -v directory | grep -v directories | rev | grep -v '^\/' | rev | sed 's/</Result_baseline/' | sed 's/>/Result_check/' | sed 's/\[//' | sed 's/\]//' | column -t | uniq | grep -v '^\-\-\-' | awk '{print $5}' | sort | uniq -d`
 
 		if [[ ! -z $file_names_modified ]]; then
-			echo "[-] Changes were made to the following file..."
-			echo ""
+			echo "[-] Changes were made to the following file..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
 			# compare files with diff (change command to parse output more efficient)
 			for FILES in $file_names_modified;
 			do
 				if [[ ! -f $base_path/clone$FILES ]]; then
-					echo "$FILES"
-					echo "There is no backup file to compare $FILES with"
-					echo ""
+					echo "$FILES" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "There is no backup file to compare $FILES with" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
 				else
-					echo "$FILES"
-					diff "$base_path/clone$FILES" "$FILES" | grep -v '^[0-9]' | sed 's/</This line was removed:/' | sed 's/>/This line was added:/' 2>/dev/null
-					echo ""
+					echo "$FILES" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					difference=`diff "$base_path/clone$FILES" "$FILES" | grep -v '^[0-9]' | sed 's/</This line was removed:/' | sed 's/>/This line was added:/' 2>/dev/null`
+					echo "$difference" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
 				fi
 			done
 		else
-			echo -e "[$RED!$NORMAL] No files to compare!!!"
+			echo -e "[$RED!$NORMAL] No files to compare!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 		fi
 	fi
 
-	echo "-------------------------------------------------------------------"
-	echo "[-] Exiting"
-	echo ""
+	# Check if there are modified files
+	if [[ ! -z $file_names_modified ]]; then
+		# Ask if modified files needs to be restored from the /clone folder
+		echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		read -p "[-] Restore the integrity of the modified files (Y/n)? " questionrestore
+		if [[ ! -z $questionrestore ]]; then
+			if [[ ! $questionrestore =~ [yYnN] ]]; then
+				echo -e "[$RED!$NORMAL] That is not a valid option!!!"
+				sleep 2
+				clear 
+				logo
+				compare
+			else
+				if [[ $questionrestore =~ [yY] ]]; then
+					echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+					restore-files
+				else
+					echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+					exit
+				fi
+			fi
+		else
+			echo "-------------------------------------------------------------------" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
+			restore-files
+		fi
+	else
+		echo "-------------------------------------------------------------------"
+		echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "" | tee -a $base_path/logs/bfim.log
+	fi
 }
 
 function restore () {
@@ -597,7 +698,7 @@ function restore () {
 		# Asks for a number as input
 		read -p '[-] Give number of file to restore: ' restorefile
 		# Variable to set range of number of backups
-		range=`ls -lah /var/fim/ | grep 'baseline_[0-9]' | awk '{print $9}' | awk '{print NR".)", $0}' | cut -d "." -f1`
+		range=`ls -lah $base_path/ | grep 'baseline_[0-9]' | awk '{print $9}' | awk '{print NR".)", $0}' | cut -d "." -f1`
 		if [[ ! $restorefile =~ [$range] ]]; then
 			echo -e "[$RED!$NORMAL] That is not a valid number!!!"
 			echo "[-] Please give the number of the file to restore..."
@@ -607,9 +708,9 @@ function restore () {
 			restore
 		else
 			# Parses output of command into variable
-			restorefile1=`ls -lah /var/fim | grep 'baseline_[0-9]' | awk '{print $9}' | awk '{print NR".)", $0}' | egrep "^$restorefile" | awk '{print $2}'`
+			restorefile1=`ls -lah $base_path | grep 'baseline_[0-9]' | awk '{print $9}' | awk '{print NR".)", $0}' | egrep "^$restorefile" | awk '{print $2}'`
 			# Copy chosen backup file to new baseline file
-			cp $base_path/$restorefile1 $base_path/baseline
+			cp --preserve=all $base_path/$restorefile1 $base_path/baseline
 			if [[ $? -eq 0 ]]; then
 				echo "-------------------------------------------------------------------"
 				echo "[-] Restoring $restorefile1 as new baseline..."
@@ -628,8 +729,6 @@ function restore () {
 				restore
 			fi
 		fi
-		# Set permission for root only
-		chmod -R 600 $base_path/
 	else
 		echo -e "[$RED!$NORMAL] No backup file was found!!!"
 		echo "-------------------------------------------------------------------"
@@ -647,14 +746,14 @@ function batch-quarantaine () {
 	# Set var to contain all found files that have been added
 	#s_files=`diff $base_path/baseline $base_path/check | grep -v /$ | grep -v '^[0-9]' | grep -v '\-\-\-' | grep -v directory | grep -v directories | sed 's/</Result_baseline/' | sed 's/>/Result_check/' | sed 's/\[//' | sed 's/\]//' | column -t | awk '{print $5}' | uniq`
 	
-	echo "[-] Placing suspicious files in quarantaine..."
-	echo "[-] Changing ownership of files..."
-	echo "[-] Changing permissions of files..."
+	echo "[-] Placing suspicious files in quarantaine..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "[-] Changing ownership of files..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "[-] Changing permissions of files..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
 
 	# Moving suspicious files to quarantaine folder
 	for FILES in $file_added;
 	do
-		mv $FILES /var/fim/quarantaine 2>/dev/null
+		mv $FILES $base_path/quarantaine 2>/dev/null
 	done
 
 	# Changing ownership
@@ -663,8 +762,8 @@ function batch-quarantaine () {
 	chmod -R 400 $base_path/quarantaine/
 
 	echo "-------------------------------------------------------------------"
-	echo "[-] Exiting"
-	echo ""
+	echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "" | tee -a $base_path/logs/bfim.log
 	exit 0	
 }
 
@@ -674,28 +773,34 @@ function quarantaine () {
 	
 	folder_check
 
-	echo "[-] Choose which file to move..."
-	echo ""
+	echo "[-] Choose which file to move..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "" | tee -a $base_path/logs/bfim.log
 
 	for FILES in $file_added;
 	do
 		read -p "$FILES <-- move (Y/n)? " movequestion
-		if [[ ! $movequestion =~ [YyNn] ]]; then
-			echo "[!] That is not a valid option!!!"
-			sleep 2
-			clear
-			logo
-			quarantaine
-		else
-			# Moving suspicious files to quarantaine folder
-			if [[ $movequestion =~ [Yy] ]]; then
-				mv $FILES /var/fim/quarantaine 2>/dev/null
-				echo "[-] Placing $FILES in quarantaine..."
-				echo ""
+		if [[ ! -z $movequestion ]]; then
+			if [[ ! $movequestion =~ [YyNn] ]]; then
+				echo "[!] That is not a valid option!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+				sleep 2
+				clear
+				logo
+				quarantaine
 			else
-				echo "[-] Skipping $FILES..."
-				echo ""
+				# Moving suspicious files to quarantaine folder
+				if [[ $movequestion =~ [Yy] ]]; then
+					mv $FILES $base_path/quarantaine 2>/dev/null
+					echo "[-] Placing $FILES in quarantaine..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+				else
+					echo "[-] Skipping $FILES..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+				fi
 			fi
+		else
+			mv $FILES $base_path/quarantaine 2>/dev/null
+			echo "[-] Placing $FILES in quarantaine..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+			echo "" | tee -a $base_path/logs/bfim.log
 		fi
 	done
 
@@ -705,9 +810,91 @@ function quarantaine () {
 	chmod -R 400 $base_path/quarantaine/
 
 	echo "-------------------------------------------------------------------"
-	echo "[-] Exiting"
-	echo ""
+	echo "[-] Exiting" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "" | tee -a $base_path/logs/bfim.log
 	exit 0	
+}
+
+function restore-files () {
+	# This part is to restore modified files and replace them with the copied versions in the /clone folder
+	# If there is no copy then the files are opted to be removed
+
+	folder_check
+
+	# Update the locate database to include the copied files in the /clone folder
+	updatedb
+
+	# Create variable with list of modified files
+	file_names_modified=`diff $base_path/baseline $base_path/check | grep -v '^[0-9]' | grep -v directory | grep -v directories | rev | grep -v '^\/' | rev | sed 's/</Result_baseline/' | sed 's/>/Result_check/' | sed 's/\[//' | sed 's/\]//' | column -t | uniq | grep -v '^\-\-\-' | awk '{print $5}' | sort | uniq -d`
+
+	if [[ -z $file_names_modified ]]; then
+		echo "[!] No copied files found to restore!!!" | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "-------------------------------------------------------------------" | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		echo "[-] Exiting" | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+		exit 0
+	else
+		for FILES in $file_names_modified;
+		do
+			read -p "$FILES <-- restore (Y/n)? " restorequestion
+		
+			if [[ ! -z $restorequestion ]]; then
+				if [[ ! $restorequestion =~ [YyNn] ]]; then
+					echo "[!] That is not a valid option!!!" | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					sleep 2
+					clear
+					logo
+					restore-files
+				else
+					if [[ $restorequestion =~ [yY] ]]; then
+						if [[ ! -f $base_path/clone/$FILES ]]; then
+							echo "[-] There is no copied version of $FILES to restore..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+							echo "" | tee -a $base_path/logs/bfim.log
+						else
+							cp --preserve=all $base_path/clone/$FILES $FILES
+							echo "[-] Restoring the integrity of $FILES..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+							echo "" | tee -a $base_path/logs/bfim.log
+						fi
+					else
+						echo "[-] Skipping $FILES..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+						echo "" | tee -a $base_path/logs/bfim.log 
+					fi
+				fi
+			else
+				if [[ ! -f $base_path/clone/$FILES ]]; then
+					echo "[-] There is no copied version of $FILES to restore..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+				else
+					cp --preserve=all $base_path/clone/$FILES $FILES
+					echo "[-] Restoring the integrity of $FILES..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+					echo "" | tee -a $base_path/logs/bfim.log
+				fi
+			fi
+		done
+	fi
+
+	echo "-------------------------------------------------------------------" | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "[-] Files are restored..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	echo "[-] Creating new checkfile..." | ts '[%Y-%m-%d %H:%M:%S]' | tee -a $base_path/logs/bfim.log | cut -d "]" -f2- | sed 's/^ //'
+	
+	# Create a new checkfile because the initial files have been restored
+	# If not it will give false positives
+	rm -f $base_path/check
+
+	for ITEMS in $(cat $base_path/folders.list);
+	do
+		tree -lfsugiF --dirsfirst --sort=name $ITEMS >> $base_path/check
+	done
+
+	# Tree will recursively run through folders by default
+	# This tree command will limit itself to the root folder without going to /proc/, /var/log/
+	# Because these folders will create false-positives
+	tree -lfsugiF --dirsfirst --sort=name -L 1 / >> $base_path/check
+
+	# Set permission for root only
+	chmod 600 $base_path/*
+
+	echo "-------------------------------------------------------------------" | tee -a $base_path/logs/bfim.log
+	echo "[-] Exiting" | tee -a $base_path/logs/bfim.log
 }
 
 clear
