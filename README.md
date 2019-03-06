@@ -14,25 +14,25 @@ offers to install the tool.
 ## FUNCTIONS
 BFIM has the following functions:
 
---create
+<b>--create</b>
 This will create a baseline of the files and folders, which are noted in the `folders.list` file.
 This file needs to be adjusted if there is a need to add or remove folders.
 If there is already a baseline set it will give a warning that it will remove the current
 baseline and create a new one. 
 As a safety precaution, it will create a backup of the current baseline before removing it.
 
---check
+<b>--check</b>
 This will create a similar outcome as the baseline function.
 The result of this check will be compared with the baseline.
 Any kind of difference will be reported as files that are added, removed or modified.
 The check function will also give the opportunity to put the added files into a quarantaine folder.
 Here the files are stripped from their original ownership and permissions are changed to 400.
 
---clone
+<b>--clone</b>
 This function will create a folder with files and folders from the `whitelist.list` file.
 In a later stage BFIM can compare these files with modified files found on the system.
 
---compare
+<b>--compare</b>
 This function will compare any modified file found with the original version of that file, 
 which is cloned into the folder `<fim folder>/clone`.
 The whitelist.list file is important for this function as it holds the folders needed to be cloned.
@@ -40,10 +40,10 @@ If this function tries to compare a found modified file and there is no original
 it will report that there is no cloned version found to compare with.
 Additional to this function is the option to restore the modified files (if the original file is included in the backup)
 
---backup
+<b>--backup</b>
 This function will create a backup of the current baseline.
 
---restore
+<b>--restore</b>
 This function will list all the backups of baselines and gives the choice which baseline backup needs 
 to be restored as the current baseline.
 
