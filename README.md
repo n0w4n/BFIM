@@ -38,6 +38,7 @@ which is cloned into the folder `<fim folder>/clone`.
 The whitelist.list file is important for this function as it holds the folders needed to be cloned.
 If this function tries to compare a found modified file and there is no original cloned file,
 it will report that there is no cloned version found to compare with.
+Additional to this function is the option to restore the modified files (if the original file is included in the backup)
 
 --backup
 This function will create a backup of the current baseline.
@@ -50,11 +51,6 @@ to be restored as the current baseline.
 For demonstration purposes there is a demo.sh which will create a basic setup to mimic an attacker on the system.
 The script will create files and then removes some and alters others after you created a baseline.
 This will trigger BFIM and it will report on the changes.
-
-## COMING
-This script is a work-in-progress and there are still a few things that needs to be done:
-- a log or reporting function to backtrack the things that have accured on the system
-- a function to restore files from the clone folder if the modifications are unwanted
 
 ## TRUST
 Like all things from the internet: Don't trust it blindly!!!
