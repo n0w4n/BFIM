@@ -1,7 +1,7 @@
 # BFIM ~ Bash File Integrity Monitor
 BFIM is created as part of an redteam/blueteam excercise.
 Because there wasn't much information about given resources on the defending machines, 
-I needed a BFIM that had almost no dependancies and was very lightweight.
+I needed a FIM that had almost no dependancies and was very lightweight.
 BFIM can help with maintaining the integrity of your filesystem.
 It is easy and fast to use and is flexible when adjusting is needed.
 
