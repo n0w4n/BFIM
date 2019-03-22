@@ -183,26 +183,23 @@ function folder_check () {
 		echo "/etc" >> $base_path/folders.list
 		echo "/root" >> $base_path/folders.list
 		echo "/tmp" >> $base_path/folders.list
-		echo "/home" >> $base_path/folders.list
-		ls -lah /var | grep drw | grep -v log | grep -v fim | grep -v lib | tail -n +3 | awk '{print "/var/"$9}' >> $base_path/folders.list
-	else
-		# Checks if the var folder is in the folders.list file
-		# If not, it will add the needed folders within /var to the folders.list
-		folder_check=$(cat $base_path/folders.list | grep /var/)
+		# If the /home folder has an user which is used heavily, use grep -v <folder> to exclude it from check
+		# Else it will generate a lot of false-positives
+		ls -lah /home | grep drw | tail -n +3 | grep -v monitor | awk '{print "/home/"$9}' >> $base_path/folders.list
 		# /var folder contains folders with rapidly changing files
-		# These folders will be removed from the list
 		# If alteration is needed, adjust the grep -v <folder> command to exclude a folder from the search
-		if [[ -z $folder_check ]]; then
-			ls -lah /var | grep drw | grep -v log | grep -v fim | grep -v lib | tail -n +3 | awk '{print "/var/"$9}' >> $base_path/folders.list
-		fi
+		ls -lah /var | grep drw | grep -v log | grep -v bfim | grep -v lib | tail -n +3 | awk '{print "/var/"$9}' >> $base_path/folders.list
 	fi
 
 	# Creates the whitelist.list file
 	# This file is used for targeting the files/folders which needs to be cloned
 	if [[ ! -f $base_path/whitelist.list ]]; then
 		echo "/var/www" > $base_path/whitelist.list
-		echo "/home" >> $base_path/whitelist.list
+		echo "/etc" >> $base_path/whitelist.list
 		echo "/usr/bin" >> $base_path/whitelist.list
+		echo "/bin" >> $base_path/whitelist.list
+		# Choosing which folder (user) to exclude from backup is possible with altering or adding the grep -v <folder> options
+		ls -lah /home | grep drw | tail -n +3 | grep -v monitor | awk '{print "/home/"$9}' >> $base_path/whitelist.list
 	fi
 }
 
